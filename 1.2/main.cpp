@@ -17,9 +17,11 @@ using first_arg_t = typename first_arg<Args...>::type;
 
 // Implementação estilo pré-C++20 com enable_if + fold expression (C++17)
 template <typename... Args>
-std::enable_if_t<are_same_v<Args...>, first_arg_t<Args...>> Add(const Args&... args) noexcept
+std::enable_if_t<are_same_v<Args...>, first_arg_t<Args...>>
+Add(const Args&... args) noexcept
 {
-    static_assert(sizeof...(Args) > 1, "Add requer pelo menos dois operandos");
+    static_assert(sizeof...(Args) > 1,
+                  "Add requer pelo menos dois operandos");
     return (... + args);
 }
 

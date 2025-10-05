@@ -1,135 +1,76 @@
-As páginas **18 a 21** do livro ***Programming with C++20***
-(Andreas Fertig) tratam da seção **1.1 – “Programming
-before Concepts”**, que explica como era a programação
-genérica em C++ **antes da introdução dos *Concepts***
-no padrão C++20.
-Aqui vai um resumo e explicação detalhada dos pontos
-principais dessas páginas:
-
----
-
-### 🔹 Contexto
-
-Antes dos *Concepts*, o C++ permitia criar funções genéricas
-com **templates**. Isso era poderoso, mas trazia desvantagens:
-
-* Erros de compilação difíceis de entender.
-* Nenhuma forma clara de **especificar requisitos de tipo**
-(por exemplo, “este tipo deve suportar o operador `+`”).
-* Abuso de técnicas como **SFINAE** (*Substitution Failure
-Is Not An Error*) e `std::enable_if`, que tornavam o código
-confuso.
-
----
-
-### 🔹 Exemplo usado: Função `Add`
-
-O autor começa com uma função genérica `Add` que deve somar vários valores:
+Legal, Ivan — o seu `Add` tá quase lá 😄. Faltou só declarar os *helpers* `are_same_v` e `first_arg_t` (e incluir `<type_traits>`). Abaixo vai uma versão **pré-Concepts** (estilo do livro antes da página 21) que compila e mantém a mesma ideia:
 
 ```cpp
-const int x = Add(2, 3, 4, 5);
-const int y = Add(2, 3);
-const int z = Add(2, 3.0);  // ← deveria dar erro
-```
+#include <iostream>
+#include <type_traits>
 
-A ideia é que `Add`:
+// are_same_v: true se todos os tipos no pack são iguais ao primeiro
+template <typename T, typename... Ts>
+inline constexpr bool are_same_v = std::conjunction_v<std::is_same<T, Ts>...>;
 
-* aceite um número variável de argumentos (`variadic templates`);
-* funcione apenas quando **todos os tipos forem iguais** (por exemplo, todos `int`);
-* não aceite misturas como `int` e `double`.
+// first_arg_t: tipo do primeiro argumento do pack
+template <typename T, typename...>
+struct first_arg { using type = T; };
 
----
+template <typename... Args>
+using first_arg_t = typename first_arg<Args...>::type;
 
-### 🔹 Ferramentas auxiliares (helpers)
-
-Para fazer isso antes dos *Concepts*, o autor usa dois *helpers*:
-
-1. **`are_same_v`** – verifica se todos os tipos em um *parameter pack* são iguais:
-
-   ```cpp
-   template<typename T, typename... Ts>
-   constexpr inline bool are_same_v =
-       std::conjunction_v<std::is_same<T, Ts>...>;
-   ```
-
-   * Usa *type traits* (`std::is_same`) para comparar tipos.
-   * Usa `std::conjunction_v` (C++17) para combinar vários testes booleanos.
-
-2. **`first_arg_t`** – obtém o tipo do primeiro argumento:
-
-   ```cpp
-   template<typename T, typename...>
-   struct first_arg { using type = T; };
-
-   template<typename... Args>
-   using first_arg_t = typename first_arg<Args...>::type;
-   ```
-
----
-
-### 🔹 Implementação da `Add` (pré-C++20)
-
-Com esses *helpers*, a função é escrita assim:
-
-```cpp
-template<typename... Args>
+// Implementação estilo pré-C++20 com enable_if + fold expression (C++17)
+template <typename... Args>
 std::enable_if_t<are_same_v<Args...>, first_arg_t<Args...>>
-Add(const Args&... args) noexcept {
+Add(const Args&... args) noexcept
+{
+    static_assert(sizeof...(Args) > 1, "Add requer pelo menos dois operandos");
     return (... + args);
+}
+
+int main() {
+    std::cout << Add(2, 4) << '\n';        // OK
+    // std::cout << Add(2, 3.0) << '\n';   // ERRO de compilação (tipos diferentes)
+    return 0;
 }
 ```
 
-* `std::enable_if_t<condição, tipo>` **habilita** a função
-apenas se a condição for verdadeira.
-* `(... + args)` é um **fold expression** (C++17), que soma todos os argumentos.
-* Se `are_same_v` for falso, a função não é instanciada (SFINAE).
-
-👉 O problema: essa linha com `enable_if_t` é **difícil
-de ler e entender**, especialmente para iniciantes.
-
----
-
-### 🔹 Dificuldades do modelo antigo
-
-O autor destaca os problemas:
-
-* **Pouca clareza**: o código não diz claramente “esta
-função requer que todos os tipos sejam iguais”.
-* **Erros enormes de compilação**: o compilador mostra
-mensagens longas, listando todas as sobrecargas tentadas.
-* **Sintaxe obscura**: o uso de `enable_if_t`, `typename`,
-`::value`, etc., torna o código verboso.
-
----
-
-### 🔹 Introdução dos *Concepts* (antecipando a mudança)
-
-Na página 21, começa a seção **1.2 – “Start using
-Concepts”**, mostrando como o mesmo exemplo fica **muito
-mais simples** com C++20:
+Se quiser a versão **C++20 com Concepts**, fica ainda mais legível (dispensa `enable_if`):
 
 ```cpp
-template<typename... Args>
-requires are_same_v<Args...>
+#include <iostream>
+#include <type_traits>
+#include <concepts>
+
+// Helpers iguais aos do exemplo anterior
+template <typename T, typename... Ts>
+inline constexpr bool are_same_v = std::conjunction_v<std::is_same<T, Ts>...>;
+
+template <typename T, typename...>
+struct first_arg { using type = T; };
+
+template <typename... Args>
+using first_arg_t = typename first_arg<Args...>::type;
+
+// Versão com requires (C++20)
+template <typename... Args>
+requires (are_same_v<Args...> && (sizeof...(Args) > 1) &&
+          requires(Args... a) { { (... + a) } noexcept -> std::same_as<first_arg_t<Args...>>; })
 auto Add(Args&&... args) noexcept {
     return (... + args);
 }
+
+int main() {
+    std::cout << Add(2, 4) << '\n';
+    // std::cout << Add(2, 3.0) << '\n'; // ERRO: tipos diferentes
+    return 0;
+}
 ```
 
-* O novo **`requires`** é direto e legível:
-  “Esta função requer que todos os tipos sejam iguais”.
-* O retorno `auto` é visível e limpo.
-* O código é mais expressivo e elimina `enable_if`.
+Dicas rápidas:
 
----
+* Para a primeira versão, compile com `-std=c++17`; para a segunda, `-std=c++20`.
+* O `static_assert(sizeof...(Args) > 1)` impede chamar `Add` com um único argumento.
+* A *compound requirement* `{ (... + a) } noexcept -> std::same_as<...>` garante que `+` é `noexcept` **e** retorna o mesmo tipo do primeiro argumento (como mostrado quando o livro evolui o exemplo). 
 
-### 🔹 Conclusão das páginas 18–21
+Quer que eu adapte para aceitar promoções explícitas (ex.: `int` + `long`) ou adicionar uma sobrecarga que trate inteiros de tamanhos diferentes?
 
-Essas páginas mostram a **evolução da metaprogramação** em C++:
 
-* **Antes dos Concepts**: código com `enable_if`, `type traits`,
-SFINAE — poderoso, porém difícil.
-* **Com Concepts (C++20)**: sintaxe clara, expressiva e
-legível, permitindo definir **requisitos explícitos**
-sobre tipos genéricos.
-
+Medical References:
+1. None — DOI: file-SSjVAdazb3CWJUQv8Vrxez

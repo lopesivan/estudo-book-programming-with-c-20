@@ -12,7 +12,7 @@ Language: Cpp
 IndentWidth: 4 # Indentação de 4 espaços
 TabWidth: 4 # Tab = 4 espaços
 UseTab: Never # Nunca usar tabs, sempre espaços
-ColumnLimit: 100 # 100 colunas (mais moderno que 78)
+ColumnLimit: 78 # 100 colunas (mais moderno que 78)
 ContinuationIndentWidth: 4 # Indentação para continuação de linha
 # ============================================================================
 # PONTEIROS E REFERÊNCIAS

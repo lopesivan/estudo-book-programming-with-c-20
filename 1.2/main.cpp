@@ -1,11 +1,11 @@
 #include <iostream>
 #include <type_traits>
+#include <concepts>
 
-// are_same_v: true se todos os tipos no pack são iguais ao primeiro
+// Helpers iguais aos do exemplo anterior
 template <typename T, typename... Ts>
 inline constexpr bool are_same_v = std::conjunction_v<std::is_same<T, Ts>...>;
 
-// first_arg_t: tipo do primeiro argumento do pack
 template <typename T, typename...>
 struct first_arg
 {
@@ -15,18 +15,24 @@ struct first_arg
 template <typename... Args>
 using first_arg_t = typename first_arg<Args...>::type;
 
-// Implementação estilo pré-C++20 com enable_if + fold expression (C++17)
+// Versão com requires (C++20)
 template <typename... Args>
-std::enable_if_t<are_same_v<Args...>, first_arg_t<Args...>>
-        Add (const Args& ... args) noexcept
+requires (are_same_v<Args...>&& (sizeof... (Args) > 1)&&
+          requires (Args... a)
 {
-    static_assert (sizeof... (Args) > 1, "Add requer pelo menos dois operandos");
+    {
+        (... + a)
+    }
+    noexcept -> std::same_as<first_arg_t<Args...>>;
+})
+auto Add (Args&& ... args) noexcept
+{
     return (... + args);
 }
 
 int main()
 {
-    std::cout << Add (2, 4) << '\n';       // OK
-    // std::cout << Add(2, 3.0) << '\n';   // ERRO de compilação (tipos diferentes)
+    std::cout << Add (2, 4) << '\n';
+    // std::cout << Add(2, 3.0) << '\n'; // ERRO: tipos diferentes
     return 0;
 }
